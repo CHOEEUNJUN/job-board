@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>채용공고 모아보기 · 학과 취업지원</title>
+<style>
+  :root { --fg:#1f2328; --muted:#656d76; --line:#d8dee4; --bg:#f6f8fa; --accent:#0969da; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif; color:var(--fg); background:#fff; line-height:1.5; }
+  header { border-bottom:1px solid var(--line); background:var(--bg); }
+  .wrap { max-width:880px; margin:0 auto; padding:20px 16px; }
+  h1 { font-size:22px; margin:0 0 4px; }
+  .sub { color:var(--muted); font-size:14px; margin:0; }
+  .controls { display:flex; gap:8px; flex-wrap:wrap; margin:16px 0; }
+  input, select { font:inherit; padding:8px 10px; border:1px solid var(--line); border-radius:6px; }
+  input { flex:1; min-width:200px; }
+  .meta { color:var(--muted); font-size:13px; margin-bottom:8px; }
+  ul { list-style:none; padding:0; margin:0; }
+  li { border:1px solid var(--line); border-radius:8px; padding:14px 16px; margin-bottom:10px; }
+  li a.title { font-weight:600; color:var(--accent); text-decoration:none; font-size:16px; }
+  li a.title:hover { text-decoration:underline; }
+  .company { margin:2px 0 6px; }
+  .tags { display:flex; flex-wrap:wrap; gap:6px; font-size:13px; color:var(--muted); }
+  .tags span { background:var(--bg); border:1px solid var(--line); border-radius:999px; padding:1px 8px; }
+  .due { color:#cf222e; }
+  .empty { text-align:center; color:var(--muted); padding:48px 0; border:1px dashed var(--line); border-radius:8px; }
+  footer { border-top:1px solid var(--line); margin-top:24px; color:var(--muted); font-size:13px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <h1>채용공고 모아보기</h1>
+    <p class="sub">학과 학생 취업지원용 채용정보 목록입니다. 공고를 누르면 원문 사이트로 이동합니다.</p>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="controls">
+    <input id="q" type="search" placeholder="회사명, 공고명, 직무로 검색">
+    <select id="region"><option value="">전체 지역</option></select>
+    <select id="career"><option value="">전체 경력</option></select>
+  </div>
+  <div class="meta" id="meta"></div>
+  <ul id="list"></ul>
+</main>
+
+<footer>
+  <div class="wrap">
+    채용정보 제공: <span id="source">잡코리아</span> · 공고 내용과 지원은 각 원문 사이트에서 확인하세요.
+  </div>
+</footer>
+
+<script>
+let jobs = [];
+const $ = id => document.getElementById(id);
+
+function esc(s) {
+  return String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+function safeUrl(u) {
+  try { const x = new URL(u); return (x.protocol === "https:" || x.protocol === "http:") ? x.href : "#"; }
+  catch { return "#"; }
+}
+function fillSelect(el, values) {
+  [...new Set(values.filter(Boolean))].sort().forEach(v => {
+    const o = document.createElement("option"); o.value = v; o.textContent = v; el.appendChild(o);
+  });
+}
+function render() {
+  const q = $("q").value.trim().toLowerCase();
+  const r = $("region").value, c = $("career").value;
+  const shown = jobs.filter(j =>
+    (!q || [j.title, j.company, j.job].join(" ").toLowerCase().includes(q)) &&
+    (!r || j.region === r) && (!c || j.career === c));
+  $("list").innerHTML = shown.length ? shown.map(j => `
+    <li>
+      <a class="title" href="${esc(safeUrl(j.url))}" target="_blank" rel="noopener noreferrer">${esc(j.title)}</a>
+      <div class="company">${esc(j.company)}</div>
+      <div class="tags">
+        ${j.job ? `<span>${esc(j.job)}</span>` : ""}
+        ${j.region ? `<span>${esc(j.region)}</span>` : ""}
+        ${j.career ? `<span>${esc(j.career)}</span>` : ""}
+        ${j.education ? `<span>${esc(j.education)}</span>` : ""}
+        ${j.due ? `<span class="due">마감 ${esc(j.due)}</span>` : ""}
+      </div>
+    </li>`).join("")
+    : `<li class="empty">${jobs.length ? "조건에 맞는 공고가 없습니다." : "공고를 준비하고 있습니다."}</li>`;
+  $("meta").textContent = jobs.length ? `${shown.length}건 / 전체 ${jobs.length}건` : "";
+}
+
+fetch("jobs.json", { cache: "no-store" })
+  .then(r => r.json())
+  .then(data => {
+    jobs = Array.isArray(data.jobs) ? data.jobs : [];
+    if (data.source) $("source").textContent = data.source;
+    fillSelect($("region"), jobs.map(j => j.region));
+    fillSelect($("career"), jobs.map(j => j.career));
+    if (data.updated_at) $("meta").dataset.updated = data.updated_at;
+    render();
+    if (data.updated_at) $("meta").textContent += (jobs.length ? " · " : "") + `마지막 갱신 ${data.updated_at}`;
+  })
+  .catch(() => { render(); });
+
+["q", "region", "career"].forEach(id => $(id).addEventListener("input", render));
+</script>
+</body>
+</html>
